@@ -5,20 +5,26 @@ from __future__ import annotations
 import importlib
 import inspect
 import re
+import warnings
 from dataclasses import dataclass
 from functools import cached_property
-from typing import Any, Callable
+from typing import Any, Callable, Literal
 
 from yenie_parser.exceptions import (
     AmbiguousCommandError,
+    ParserExecutionError,
+    UnparsedOutputError,
     UnsupportedCommandError,
     UnsupportedPlatformError,
+    YenieParserWarning,
 )
 
 ParserCallable = Callable[..., dict]
+OnFailure = Literal["none", "empty_dict", "raw_output"]
 
 _PLACEHOLDER_RE = re.compile(r"^\{(?P<name>[a-zA-Z_][a-zA-Z0-9_]*)\}$")
 _QUOTED_PLACEHOLDER_RE = re.compile(r'^"\{(?P<name>[a-zA-Z_][a-zA-Z0-9_]*)\}"$')
+_ON_FAILURE_VALUES = frozenset(("none", "empty_dict", "raw_output"))
 _PSEUDO_LITERAL_PLACEHOLDERS = {"database", "details", "policy"}
 _TRAILING_SPACED_PLACEHOLDERS = {"interface", "interface_name", "intf_or_ip"}
 
@@ -97,20 +103,47 @@ class CommandMatch:
     score: tuple[int, int, int, int]
 
 
-def parse(*, platform: str, command: str, raw_output: str) -> dict:
+def parse(
+    *,
+    platform: str,
+    command: str,
+    raw_output: str,
+    strict: bool = False,
+    warn: bool = False,
+    on_failure: OnFailure = "none",
+) -> dict[str, Any] | None | str:
+    _validate_on_failure(on_failure)
     platform_key = normalize_platform(platform)
     if platform_key != "iosxe":
-        raise UnsupportedPlatformError(f"Unsupported platform: {platform!r}")
+        return _handle_parse_failure(
+            UnsupportedPlatformError(f"Unsupported platform: {platform!r}"),
+            raw_output=raw_output,
+            strict=strict,
+            warn=warn,
+            on_failure=on_failure,
+        )
 
     matches = find_matches(platform_key, command)
     if not matches:
-        raise UnsupportedCommandError(f"Unsupported command for {platform_key}: {command!r}")
+        return _handle_parse_failure(
+            UnsupportedCommandError(f"Unsupported command for {platform_key}: {command!r}"),
+            raw_output=raw_output,
+            strict=strict,
+            warn=warn,
+            on_failure=on_failure,
+        )
 
     best_score = matches[0].score
     best_matches = [match for match in matches if match.score == best_score]
     if len(best_matches) > 1 and len({match.entry.parser_class for match in best_matches}) > 1:
         templates = ", ".join(match.entry.template for match in best_matches)
-        raise AmbiguousCommandError(f"Ambiguous command {command!r}; matched: {templates}")
+        return _handle_parse_failure(
+            AmbiguousCommandError(f"Ambiguous command {command!r}; matched: {templates}"),
+            raw_output=raw_output,
+            strict=strict,
+            warn=warn,
+            on_failure=on_failure,
+        )
 
     first_result: dict[str, Any] | None = None
     first_error: Exception | None = None
@@ -127,10 +160,65 @@ def parse(*, platform: str, command: str, raw_output: str) -> dict:
             return result
 
     if first_result is not None:
-        return first_result
+        return _handle_parse_failure(
+            UnparsedOutputError(
+                f"Parser produced no structured data for {platform_key} command {command!r}"
+            ),
+            raw_output=raw_output,
+            strict=strict,
+            warn=warn,
+            on_failure=on_failure,
+        )
     if first_error is not None:
-        raise first_error
-    return {}
+        return _handle_parse_failure(
+            ParserExecutionError(f"Parser execution failed for {platform_key} command {command!r}"),
+            raw_output=raw_output,
+            strict=strict,
+            warn=warn,
+            on_failure=on_failure,
+            cause=first_error,
+        )
+    return _handle_parse_failure(
+        UnsupportedCommandError(f"Unsupported command for {platform_key}: {command!r}"),
+        raw_output=raw_output,
+        strict=strict,
+        warn=warn,
+        on_failure=on_failure,
+    )
+
+
+def _validate_on_failure(on_failure: object) -> None:
+    if not isinstance(on_failure, str) or on_failure not in _ON_FAILURE_VALUES:
+        values = ", ".join(repr(value) for value in sorted(_ON_FAILURE_VALUES))
+        raise ValueError(f"Invalid on_failure value {on_failure!r}; expected one of: {values}")
+
+
+def _handle_parse_failure(
+    error: Exception,
+    *,
+    raw_output: str,
+    strict: bool,
+    warn: bool,
+    on_failure: OnFailure,
+    cause: Exception | None = None,
+) -> dict[str, Any] | None | str:
+    if warn:
+        warnings.warn(str(error), YenieParserWarning, stacklevel=2)
+    if strict:
+        if cause is not None:
+            raise error from cause
+        raise error
+    return _on_failure_value(raw_output=raw_output, on_failure=on_failure)
+
+
+def _on_failure_value(*, raw_output: str, on_failure: OnFailure) -> dict[str, Any] | None | str:
+    if on_failure == "none":
+        return None
+    if on_failure == "empty_dict":
+        return {}
+    if on_failure == "raw_output":
+        return raw_output
+    raise AssertionError(f"Unhandled on_failure value: {on_failure!r}")
 
 
 def normalize_platform(platform: str) -> str:

@@ -3,7 +3,13 @@ from importlib.metadata import version
 import pytest
 
 import yenie_parser
-from yenie_parser import UnsupportedCommandError, UnsupportedPlatformError
+from yenie_parser import (
+    ParserExecutionError,
+    UnparsedOutputError,
+    UnsupportedCommandError,
+    UnsupportedPlatformError,
+)
+from yenie_parser import _registry as registry
 
 
 def test_parse_dispatches_with_case_and_whitespace_normalization() -> None:
@@ -19,23 +25,28 @@ def test_parse_dispatches_with_case_and_whitespace_normalization() -> None:
     assert parsed["binding_table_limit"] == 200000
 
 
-def test_parse_preserves_hyphenated_command_tokens() -> None:
-    with pytest.raises(UnsupportedCommandError):
-        yenie_parser.parse(
-            platform="iosxe",
-            command="show device tracking database",
-            raw_output="Binding Table has 1 entries, 0 dynamic (limit 200000)",
-        )
+def test_parse_returns_none_for_unsupported_command_by_default() -> None:
+    parsed = yenie_parser.parse(
+        platform="iosxe",
+        command="show device tracking database",
+        raw_output="Binding Table has 1 entries, 0 dynamic (limit 200000)",
+    )
+
+    assert parsed is None
 
 
-def test_parse_raises_for_unsupported_platform() -> None:
+def test_parse_returns_none_for_unsupported_platform_by_default() -> None:
+    assert yenie_parser.parse(platform="nxos", command="show version", raw_output="") is None
+
+
+def test_parse_strict_raises_for_unsupported_platform() -> None:
     with pytest.raises(UnsupportedPlatformError):
-        yenie_parser.parse(platform="nxos", command="show version", raw_output="")
+        yenie_parser.parse(platform="nxos", command="show version", raw_output="", strict=True)
 
 
-def test_parse_raises_for_unsupported_command() -> None:
+def test_parse_strict_raises_for_unsupported_command() -> None:
     with pytest.raises(UnsupportedCommandError):
-        yenie_parser.parse(platform="iosxe", command="show version", raw_output="")
+        yenie_parser.parse(platform="iosxe", command="show version", raw_output="", strict=True)
 
 
 def test_parse_accepts_concrete_placeholder_values() -> None:
@@ -99,6 +110,179 @@ def test_parse_accepts_spaced_pipe_include_placeholder() -> None:
     )
 
     assert parsed["GigabitEthernet1"]["connected"] is True
+
+
+def test_parse_returns_none_for_unparsed_output_by_default() -> None:
+    assert (
+        yenie_parser.parse(
+            platform="iosxe",
+            command="show device-tracking database",
+            raw_output="not device tracking output",
+        )
+        is None
+    )
+
+
+def test_parse_on_failure_empty_dict_returns_empty_dict() -> None:
+    parsed = yenie_parser.parse(
+        platform="iosxe",
+        command="show version",
+        raw_output="raw output",
+        on_failure="empty_dict",
+    )
+
+    assert parsed == {}
+
+
+def test_parse_on_failure_raw_output_returns_original_output() -> None:
+    raw_output = "raw output\nwith exact content"
+
+    parsed = yenie_parser.parse(
+        platform="iosxe",
+        command="show version",
+        raw_output=raw_output,
+        on_failure="raw_output",
+    )
+
+    assert parsed is raw_output
+
+
+def test_parse_strict_overrides_on_failure() -> None:
+    with pytest.raises(UnsupportedCommandError):
+        yenie_parser.parse(
+            platform="iosxe",
+            command="show version",
+            raw_output="raw output",
+            strict=True,
+            on_failure="raw_output",
+        )
+
+
+@pytest.mark.parametrize(
+    ("on_failure", "expected"),
+    [
+        ("none", None),
+        ("empty_dict", {}),
+        ("raw_output", "raw output"),
+    ],
+)
+def test_parse_warns_and_returns_configured_fallback(
+    on_failure: registry.OnFailure, expected: object
+) -> None:
+    with pytest.warns(yenie_parser.YenieParserWarning, match="Unsupported command"):
+        parsed = yenie_parser.parse(
+            platform="iosxe",
+            command="show version",
+            raw_output="raw output",
+            warn=True,
+            on_failure=on_failure,
+        )
+
+    assert parsed == expected
+
+
+def test_parse_warns_before_strict_exception() -> None:
+    with pytest.warns(yenie_parser.YenieParserWarning, match="Unsupported command"):
+        with pytest.raises(UnsupportedCommandError):
+            yenie_parser.parse(
+                platform="iosxe",
+                command="show version",
+                raw_output="raw output",
+                strict=True,
+                warn=True,
+            )
+
+
+def test_parse_raises_value_error_for_invalid_on_failure() -> None:
+    with pytest.raises(ValueError, match="Invalid on_failure value"):
+        yenie_parser.parse(
+            platform="nxos",
+            command="show version",
+            raw_output="",
+            strict=True,
+            on_failure="invalid",
+        )
+
+
+def test_parse_strict_raises_for_unparsed_output() -> None:
+    with pytest.raises(UnparsedOutputError):
+        yenie_parser.parse(
+            platform="iosxe",
+            command="show device-tracking database",
+            raw_output="not device tracking output",
+            strict=True,
+        )
+
+
+def test_parse_strict_raises_parser_execution_error(monkeypatch: pytest.MonkeyPatch) -> None:
+    class BrokenParser:
+        def cli(self, output: str | None = None) -> dict:
+            raise RuntimeError("boom")
+
+    monkeypatch.setattr(
+        registry,
+        "_load_iosxe_registry",
+        lambda: (
+            registry.ParserEntry(
+                platform="iosxe",
+                template="show broken",
+                parser_class=BrokenParser,
+                source_order=1,
+            ),
+        ),
+    )
+
+    with pytest.raises(ParserExecutionError) as exc_info:
+        yenie_parser.parse(
+            platform="iosxe",
+            command="show broken",
+            raw_output="raw output",
+            strict=True,
+        )
+
+    assert isinstance(exc_info.value.__cause__, RuntimeError)
+
+
+def test_parse_handles_ambiguous_command(monkeypatch: pytest.MonkeyPatch) -> None:
+    class ParserA:
+        def cli(self, output: str | None = None) -> dict:
+            return {"parser": "a"}
+
+    class ParserB:
+        def cli(self, output: str | None = None) -> dict:
+            return {"parser": "b"}
+
+    monkeypatch.setattr(
+        registry,
+        "_load_iosxe_registry",
+        lambda: (
+            registry.ParserEntry(
+                platform="iosxe",
+                template="show fake {value}",
+                parser_class=ParserA,
+                source_order=1,
+            ),
+            registry.ParserEntry(
+                platform="iosxe",
+                template="show fake {item}",
+                parser_class=ParserB,
+                source_order=1,
+            ),
+        ),
+    )
+
+    assert (
+        yenie_parser.parse(platform="iosxe", command="show fake thing", raw_output="raw output")
+        is None
+    )
+
+    with pytest.raises(yenie_parser.AmbiguousCommandError):
+        yenie_parser.parse(
+            platform="iosxe",
+            command="show fake thing",
+            raw_output="raw output",
+            strict=True,
+        )
 
 
 def test_supported_commands_includes_converted_upstream_files() -> None:

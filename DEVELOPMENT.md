@@ -17,6 +17,9 @@ parsed = yenie_parser.parse(
     platform="iosxe",
     command="show device-tracking database",
     raw_output=raw_cli_output,
+    strict=False,
+    warn=False,
+    on_failure="none",
 )
 ```
 
@@ -46,8 +49,9 @@ UV_CACHE_DIR=/tmp/uv-cache uv build
 
 ## Public API And Dispatch
 
-`yenie_parser.parse(platform, command, raw_output)` dispatches to an internal
-parser class through `ParserEntry` records in `_registry.py`.
+`yenie_parser.parse(platform, command, raw_output, strict=False, warn=False,
+on_failure="none")` dispatches to an internal parser class through `ParserEntry`
+records in `_registry.py`.
 
 Command matching rules:
 
@@ -59,9 +63,23 @@ Command matching rules:
 - Pipe suffix placeholders such as `| section {message}` and `| count {match}` capture trailing text.
 - Overlapping templates are ordered by exact-template match, literal-token count, template length, and source order.
 
-Unsupported platforms raise `UnsupportedPlatformError`; unsupported commands
-raise `UnsupportedCommandError`; unresolved equal-specificity matches can raise
-`AmbiguousCommandError`.
+By default, parse failures return `None`. A parse failure includes an unsupported
+platform, unsupported command, unresolved equal-specificity match, parser
+execution error, or matched parser returning no structured data.
+
+Failure handling options:
+
+- `on_failure="none"` returns `None` on failure. This is the default.
+- `on_failure="empty_dict"` returns `{}` on failure for legacy callers.
+- `on_failure="raw_output"` returns the original raw output string on failure.
+- `warn=True` emits `YenieParserWarning` through the standard `warnings` module.
+- `strict=True` raises instead of returning `on_failure` values. It uses
+  `UnsupportedPlatformError`, `UnsupportedCommandError`, `AmbiguousCommandError`,
+  `UnparsedOutputError`, or `ParserExecutionError` depending on the failure.
+
+Direct adapted parser classes may still return `{}` for empty or unmatched
+output to preserve their Genie-compatible behavior. The public `parse(...)` API
+is responsible for converting those empty parser results into failure handling.
 
 ## How Adapted Genie Modules Are Built
 

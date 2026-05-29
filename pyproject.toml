@@ -1,6 +1,6 @@
 [project]
 name = "yenie-parser"
-version = "0.3.0"
+version = "0.4.0"
 description = "Small, standalone Cisco CLI parsers derived from Cisco's Genie parsers"
 readme = "README.md"
 requires-python = ">=3.12"

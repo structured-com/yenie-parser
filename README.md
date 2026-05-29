@@ -34,9 +34,40 @@ parsed = yenie_parser.parse(
     raw_output=raw_cli_output,
 )
 ```
+Currently, parser supports these platforms:
+- `iosxe`
 
 The parser accepts only raw command output. It does not connect to devices or
 execute commands.
+
+By default, `parse(...)` returns `None` when parsing fails. That includes
+unsupported platforms, unsupported commands, ambiguous command matches, parser
+execution failures, and raw output that matches a command but produces no
+structured data.
+
+Failure behavior can be adjusted for strict validation, warnings, or legacy
+fallback values:
+
+```python
+parsed = yenie_parser.parse(
+    platform="iosxe",
+    command="show device-tracking database",
+    raw_output=raw_cli_output,
+    strict=False,
+    warn=False,
+    on_failure="none",
+)
+```
+
+Supported `on_failure` values are:
+
+- `"none"`: return `None` on failure. This is the default.
+- `"empty_dict"`: return `{}` on failure for legacy callers.
+- `"raw_output"`: return the original `raw_output` string on failure.
+
+When `strict=True`, parse failures raise Yenie Parser exceptions instead of
+returning the configured `on_failure` value. When `warn=True`, parse failures
+emit a standard-library warning using `YenieParserWarning`.
 
 Command matching strips extra whitespace and is case-insensitive. It does not
 rewrite Cisco command tokens, so `device-tracking` and `device tracking` are
