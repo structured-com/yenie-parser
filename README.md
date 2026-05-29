@@ -25,6 +25,8 @@ uv run pytest
 
 ## Usage
 
+### Python API
+
 ```python
 import yenie_parser
 
@@ -34,6 +36,52 @@ parsed = yenie_parser.parse(
     raw_output=raw_cli_output,
 )
 ```
+
+### CLI
+
+The installed package provides a `yenie-parser` terminal command:
+
+```bash
+yenie-parser parse \
+  --platform iosxe \
+  --command "show device-tracking database" \
+  --raw-output "Binding Table has 1 entries, 0 dynamic (limit 200000)"
+```
+
+Multiline command output can also be read from a file or stdin:
+
+```bash
+yenie-parser parse -p iosxe -c "show device-tracking database" --raw-file output.txt
+cat output.txt | yenie-parser parse -p iosxe -c "show device-tracking database"
+```
+
+Parser failure behavior mirrors the Python API:
+
+```bash
+yenie-parser parse \
+  -p iosxe \
+  -c "show device-tracking database" \
+  --raw-file output.txt \
+  --strict \
+  --warn \
+  --on-failure none
+```
+
+Supported parser templates can be listed or searched:
+
+```bash
+yenie-parser list
+yenie-parser list "authentication s"
+yenie-parser list --search "authentication s"
+yenie-parser list --command "show authentication sessions"
+```
+
+Package metadata is available with:
+
+```bash
+yenie-parser --version
+```
+
 Currently, parser supports these platforms:
 - `iosxe`
 

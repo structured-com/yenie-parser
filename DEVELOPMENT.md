@@ -41,6 +41,7 @@ The package uses `uv_build` in `pyproject.toml` and a `src/` layout. Development
 uses uv:
 
 ```bash
+UV_CACHE_DIR=/tmp/uv-cache uv lock
 UV_CACHE_DIR=/tmp/uv-cache uv sync
 UV_CACHE_DIR=/tmp/uv-cache uv run pytest
 UV_CACHE_DIR=/tmp/uv-cache uv run ruff check src tests
@@ -80,6 +81,21 @@ Failure handling options:
 Direct adapted parser classes may still return `{}` for empty or unmatched
 output to preserve their Genie-compatible behavior. The public `parse(...)` API
 is responsible for converting those empty parser results into failure handling.
+
+## CLI
+
+The package exposes the parser through a Click/Rich terminal command:
+
+```bash
+yenie-parser parse -p iosxe -c "show device-tracking database" --raw-file output.txt
+cat output.txt | yenie-parser parse -p iosxe -c "show device-tracking database"
+yenie-parser list --command "show authentication sessions"
+yenie-parser --version
+```
+
+The CLI should remain a thin layer over `yenie_parser.parse(...)` and registry
+metadata. Do not add CLI-only parser dispatch behavior unless the Python API
+receives the same behavior.
 
 ## How Adapted Genie Modules Are Built
 
