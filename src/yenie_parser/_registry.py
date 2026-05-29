@@ -18,6 +18,7 @@ from yenie_parser.exceptions import (
 ParserCallable = Callable[..., dict]
 
 _PLACEHOLDER_RE = re.compile(r"^\{(?P<name>[a-zA-Z_][a-zA-Z0-9_]*)\}$")
+_QUOTED_PLACEHOLDER_RE = re.compile(r'^"\{(?P<name>[a-zA-Z_][a-zA-Z0-9_]*)\}"$')
 _PSEUDO_LITERAL_PLACEHOLDERS = {"database", "details", "policy"}
 
 
@@ -34,11 +35,11 @@ class ParserEntry:
 
     @cached_property
     def placeholder_names(self) -> tuple[str, ...]:
-        return tuple(match.group("name") for token in self._tokens if (match := _PLACEHOLDER_RE.match(token)))
+        return tuple(name for token in self._tokens if (name := _placeholder_name(token)))
 
     @cached_property
     def literal_count(self) -> int:
-        return sum(1 for token in self._tokens if not _PLACEHOLDER_RE.match(token))
+        return sum(1 for token in self._tokens if not _placeholder_name(token))
 
     @cached_property
     def _tokens(self) -> tuple[str, ...]:
@@ -49,11 +50,12 @@ class ParserEntry:
         pieces = []
         tokens = self._tokens
         for index, token in enumerate(tokens):
-            placeholder = _PLACEHOLDER_RE.match(token)
-            if placeholder:
-                name = placeholder.group("name")
+            name = _placeholder_name(token)
+            if name:
                 if name in _PSEUDO_LITERAL_PLACEHOLDERS:
                     pieces.append(fr"(?P<{name}>\{{{name}\}}|{re.escape(name)})")
+                elif _QUOTED_PLACEHOLDER_RE.match(token):
+                    pieces.append(fr'"(?P<{name}>[^"]+)"')
                 elif _captures_trailing_text(tokens, index):
                     pieces.append(fr"(?P<{name}>.+)")
                 else:
@@ -136,6 +138,13 @@ def normalize_command(command: str) -> str:
     return " ".join(command.strip().split())
 
 
+def _placeholder_name(token: str) -> str | None:
+    for regex in (_PLACEHOLDER_RE, _QUOTED_PLACEHOLDER_RE):
+        if match := regex.match(token):
+            return match.group("name")
+    return None
+
+
 def find_matches(platform: str, command: str) -> list[CommandMatch]:
     matches = [entry_match for entry in get_registry(platform) if (entry_match := entry.match(command))]
     matches.sort(key=lambda match: match.score, reverse=True)
@@ -164,6 +173,8 @@ def _load_iosxe_registry() -> tuple[ParserEntry, ...]:
     modules = (
         importlib.import_module("yenie_parser.iosxe._genie_show_device_tracking"),
         importlib.import_module("yenie_parser.iosxe._genie_show_authentication_sessions"),
+        importlib.import_module("yenie_parser.iosxe._genie_show_inventory"),
+        importlib.import_module("yenie_parser.iosxe._genie_show_cdp"),
     )
     entries: list[ParserEntry] = []
     for module in modules:

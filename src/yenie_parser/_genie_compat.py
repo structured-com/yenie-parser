@@ -71,29 +71,37 @@ class Common:
         ("GigabitEthernet", "GigabitEthernet"),
         ("FastEthernet", "FastEthernet"),
         ("Ethernet", "Ethernet"),
+        ("Serial", "Serial"),
         ("Port-channel", "Port-channel"),
         ("Loopback", "Loopback"),
         ("Vlan", "Vlan"),
         ("Twe", "TwentyFiveGigE"),
         ("Two", "TwoGigabitEthernet"),
+        ("Ten", "TenGigabitEthernet"),
         ("Te", "TenGigabitEthernet"),
         ("Fo", "FortyGigabitEthernet"),
         ("Hu", "HundredGigE"),
+        ("Gig", "GigabitEthernet"),
         ("Gi", "GigabitEthernet"),
+        ("Fas", "FastEthernet"),
         ("Fa", "FastEthernet"),
         ("Eth", "Ethernet"),
         ("Et", "Ethernet"),
+        ("Ser", "Serial"),
         ("Po", "Port-channel"),
         ("Lo", "Loopback"),
         ("Vl", "Vlan"),
     )
 
     @classmethod
-    def convert_intf_name(cls, interface: str) -> str:
+    def convert_intf_name(cls, interface: str | None = None, **kwargs: TypingAny) -> str:
+        if interface is None:
+            interface = kwargs.get("intf", "")
         stripped = interface.strip()
         for short, long in cls._INTERFACE_PREFIXES:
             if stripped.lower().startswith(short.lower()):
                 suffix = stripped[len(short) :]
+                suffix = suffix.lstrip() if suffix[:1].isspace() else suffix
                 if suffix and (suffix[0].isdigit() or suffix[0] in "./"):
                     return f"{long}{suffix}"
                 if stripped.lower() == short.lower():
