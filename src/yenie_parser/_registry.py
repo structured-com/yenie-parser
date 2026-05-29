@@ -186,6 +186,8 @@ def _load_iosxe_registry() -> tuple[ParserEntry, ...]:
         importlib.import_module("yenie_parser.iosxe._genie_show_fdb"),
         importlib.import_module("yenie_parser.iosxe._genie_show_interface"),
         importlib.import_module("yenie_parser.iosxe._genie_show_run"),
+        importlib.import_module("yenie_parser.iosxe._genie_show_routing"),
+        importlib.import_module("yenie_parser.iosxe._genie_show_aaa"),
     )
     entries: list[ParserEntry] = []
     for module in modules:

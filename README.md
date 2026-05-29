@@ -63,5 +63,7 @@ project:
   - `src/genie/libs/parser/iosxe/show_fdb.py`
   - `src/genie/libs/parser/iosxe/show_interface.py`
   - `src/genie/libs/parser/iosxe/show_run.py`
+  - `src/genie/libs/parser/iosxe/show_routing.py`
+  - `src/genie/libs/parser/iosxe/show_aaa.py`
 
 See `docs/conversions/` for conversion metadata.
