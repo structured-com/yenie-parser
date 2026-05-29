@@ -300,6 +300,7 @@ def test_supported_commands_includes_converted_upstream_files() -> None:
     assert "show run policy-map {name}" in commands
     assert "show running-config | section bgp" in commands
     assert "show running-config vrf" in commands
+    assert "show cts" in commands
 
 
 def test_package_version_comes_from_project_metadata() -> None:

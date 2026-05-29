@@ -144,5 +144,6 @@ project:
   - `src/genie/libs/parser/iosxe/show_run.py`
   - `src/genie/libs/parser/iosxe/show_routing.py`
   - `src/genie/libs/parser/iosxe/show_aaa.py`
+  - `src/genie/libs/parser/iosxe/show_cts.py`
 
 See `docs/conversions/` for conversion metadata.

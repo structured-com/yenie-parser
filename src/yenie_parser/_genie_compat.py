@@ -59,6 +59,51 @@ class Schema:
         self.schema = schema
 
 
+@dataclass(frozen=True)
+class _TabularResult:
+    entries: dict[TypingAny, dict[str, TypingAny]]
+
+
+def oper_fill_tabular(  # noqa: N802
+    *,
+    header_fields: list[str],
+    label_fields: list[str],
+    device_output: str,
+    device_os: str | None = None,
+    index: list[int] | None = None,
+    **kwargs: TypingAny,
+) -> _TabularResult:
+    """Small parsergen.oper_fill_tabular replacement for adapted Genie parsers."""
+
+    del device_os, kwargs
+    entries: dict[TypingAny, dict[str, TypingAny]] = {}
+    index_columns = index or [0]
+    parsing_rows = False
+
+    for raw_line in device_output.splitlines():
+        line = raw_line.strip()
+        if not line or set(line) <= {"-"}:
+            continue
+        if all(field in line for field in header_fields):
+            parsing_rows = True
+            continue
+        if not parsing_rows:
+            continue
+
+        columns = line.split()
+        if len(columns) < len(label_fields):
+            continue
+        if len(columns) > len(label_fields):
+            columns = columns[: len(label_fields) - 1] + [" ".join(columns[len(label_fields) - 1 :])]
+
+        row = dict(zip(label_fields, columns, strict=True))
+        key_parts = tuple(columns[column] for column in index_columns)
+        key: TypingAny = key_parts[0] if len(key_parts) == 1 else key_parts
+        entries[key] = row
+
+    return _TabularResult(entries=entries)
+
+
 class Common:
     """Subset of Genie common helpers needed by adapted parsers."""
 

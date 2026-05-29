@@ -25,7 +25,7 @@ OnFailure = Literal["none", "empty_dict", "raw_output"]
 _PLACEHOLDER_RE = re.compile(r"^\{(?P<name>[a-zA-Z_][a-zA-Z0-9_]*)\}$")
 _QUOTED_PLACEHOLDER_RE = re.compile(r'^"\{(?P<name>[a-zA-Z_][a-zA-Z0-9_]*)\}"$')
 _ON_FAILURE_VALUES = frozenset(("none", "empty_dict", "raw_output"))
-_PSEUDO_LITERAL_PLACEHOLDERS = {"database", "details", "policy"}
+_PSEUDO_LITERAL_PLACEHOLDERS = {"database", "default", "details", "ipv4", "ipv6"}
 _TRAILING_SPACED_PLACEHOLDERS = {"interface", "interface_name", "intf_or_ip"}
 
 
@@ -276,6 +276,7 @@ def _load_iosxe_registry() -> tuple[ParserEntry, ...]:
         importlib.import_module("yenie_parser.iosxe._genie_show_run"),
         importlib.import_module("yenie_parser.iosxe._genie_show_routing"),
         importlib.import_module("yenie_parser.iosxe._genie_show_aaa"),
+        importlib.import_module("yenie_parser.iosxe._genie_show_cts"),
     )
     entries: list[ParserEntry] = []
     for module in modules:
