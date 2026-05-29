@@ -1,5 +1,7 @@
 """Standalone Cisco CLI parsers."""
 
+from importlib.metadata import version
+
 from yenie_parser._registry import parse, supported_commands
 from yenie_parser.exceptions import (
     AmbiguousCommandError,
@@ -8,7 +10,7 @@ from yenie_parser.exceptions import (
     UnsupportedPlatformError,
 )
 
-__version__ = "0.2.0"
+__version__ = version("yenie-parser")
 
 __all__ = [
     "AmbiguousCommandError",

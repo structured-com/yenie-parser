@@ -1,3 +1,5 @@
+from importlib.metadata import version
+
 import pytest
 
 import yenie_parser
@@ -76,3 +78,7 @@ def test_supported_commands_includes_both_upstream_files() -> None:
     assert "authentication display config-mode" in commands
     assert "show inventory raw" in commands
     assert "show cdp neighbors" in commands
+
+
+def test_package_version_comes_from_project_metadata() -> None:
+    assert yenie_parser.__version__ == version("yenie-parser")
