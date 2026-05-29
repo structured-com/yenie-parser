@@ -70,7 +70,18 @@ def test_parse_accepts_quoted_placeholder_values() -> None:
     assert parsed["name"]["Chassis"]["description"] == "Cisco Catalyst Chassis"
 
 
-def test_supported_commands_includes_both_upstream_files() -> None:
+def test_parse_accepts_spaced_trailing_interface_placeholder() -> None:
+    parsed = yenie_parser.parse(
+        platform="iosxe",
+        command="show mac address-table notification change interface HundredGigE 2/0/25",
+        raw_output="MAC Notification Feature is Disabled on the switch\n"
+        "HundredGigE2/0/25 Disabled Disabled",
+    )
+
+    assert parsed["interface"] == "HundredGigE2/0/25"
+
+
+def test_supported_commands_includes_converted_upstream_files() -> None:
     commands = set(yenie_parser.supported_commands("iosxe"))
 
     assert "show device-tracking database" in commands
@@ -78,6 +89,8 @@ def test_supported_commands_includes_both_upstream_files() -> None:
     assert "authentication display config-mode" in commands
     assert "show inventory raw" in commands
     assert "show cdp neighbors" in commands
+    assert "show arp" in commands
+    assert "show mac address-table" in commands
 
 
 def test_package_version_comes_from_project_metadata() -> None:

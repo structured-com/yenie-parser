@@ -20,6 +20,7 @@ ParserCallable = Callable[..., dict]
 _PLACEHOLDER_RE = re.compile(r"^\{(?P<name>[a-zA-Z_][a-zA-Z0-9_]*)\}$")
 _QUOTED_PLACEHOLDER_RE = re.compile(r'^"\{(?P<name>[a-zA-Z_][a-zA-Z0-9_]*)\}"$')
 _PSEUDO_LITERAL_PLACEHOLDERS = {"database", "details", "policy"}
+_TRAILING_SPACED_PLACEHOLDERS = {"interface", "interface_name", "intf_or_ip"}
 
 
 @dataclass(frozen=True)
@@ -56,7 +57,9 @@ class ParserEntry:
                     pieces.append(fr"(?P<{name}>\{{{name}\}}|{re.escape(name)})")
                 elif _QUOTED_PLACEHOLDER_RE.match(token):
                     pieces.append(fr'"(?P<{name}>[^"]+)"')
-                elif _captures_trailing_text(tokens, index):
+                elif _captures_trailing_text(tokens, index) or _captures_trailing_spaced_value(
+                    name, tokens, index
+                ):
                     pieces.append(fr"(?P<{name}>.+)")
                 else:
                     pieces.append(fr"(?P<{name}>\S+)")
@@ -169,12 +172,18 @@ def _captures_trailing_text(tokens: tuple[str, ...], index: int) -> bool:
     return "|" in literal_tokens and {"section", "count"} & literal_tokens
 
 
+def _captures_trailing_spaced_value(name: str, tokens: tuple[str, ...], index: int) -> bool:
+    return index == len(tokens) - 1 and name in _TRAILING_SPACED_PLACEHOLDERS
+
+
 def _load_iosxe_registry() -> tuple[ParserEntry, ...]:
     modules = (
         importlib.import_module("yenie_parser.iosxe._genie_show_device_tracking"),
         importlib.import_module("yenie_parser.iosxe._genie_show_authentication_sessions"),
         importlib.import_module("yenie_parser.iosxe._genie_show_inventory"),
         importlib.import_module("yenie_parser.iosxe._genie_show_cdp"),
+        importlib.import_module("yenie_parser.iosxe._genie_show_arp"),
+        importlib.import_module("yenie_parser.iosxe._genie_show_fdb"),
     )
     entries: list[ParserEntry] = []
     for module in modules:
