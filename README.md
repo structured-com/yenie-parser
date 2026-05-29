@@ -62,5 +62,6 @@ project:
   - `src/genie/libs/parser/iosxe/show_arp.py`
   - `src/genie/libs/parser/iosxe/show_fdb.py`
   - `src/genie/libs/parser/iosxe/show_interface.py`
+  - `src/genie/libs/parser/iosxe/show_run.py`
 
 See `docs/conversions/` for conversion metadata.
