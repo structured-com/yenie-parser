@@ -81,6 +81,26 @@ def test_parse_accepts_spaced_trailing_interface_placeholder() -> None:
     assert parsed["interface"] == "HundredGigE2/0/25"
 
 
+def test_parse_accepts_interface_status_command() -> None:
+    parsed = yenie_parser.parse(
+        platform="iosxe",
+        command="show interfaces status",
+        raw_output="Gi1/2 Uplink connected 125 full 100 10/100/1000-TX",
+    )
+
+    assert parsed["interfaces"]["GigabitEthernet1/2"]["status"] == "connected"
+
+
+def test_parse_accepts_spaced_pipe_include_placeholder() -> None:
+    parsed = yenie_parser.parse(
+        platform="iosxe",
+        command="show interfaces | include GigabitEthernet1 is up",
+        raw_output="GigabitEthernet1 is up, line protocol is up (connected)",
+    )
+
+    assert parsed["GigabitEthernet1"]["connected"] is True
+
+
 def test_supported_commands_includes_converted_upstream_files() -> None:
     commands = set(yenie_parser.supported_commands("iosxe"))
 
@@ -91,6 +111,8 @@ def test_supported_commands_includes_converted_upstream_files() -> None:
     assert "show cdp neighbors" in commands
     assert "show arp" in commands
     assert "show mac address-table" in commands
+    assert "show interfaces status" in commands
+    assert "show ip interface brief | include {ip}" in commands
 
 
 def test_package_version_comes_from_project_metadata() -> None:

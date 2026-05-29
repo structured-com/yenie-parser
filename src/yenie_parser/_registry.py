@@ -169,7 +169,7 @@ def _captures_trailing_text(tokens: tuple[str, ...], index: int) -> bool:
     if index != len(tokens) - 1:
         return False
     literal_tokens = {token.lower() for token in tokens}
-    return "|" in literal_tokens and {"section", "count"} & literal_tokens
+    return "|" in literal_tokens and {"section", "count", "include"} & literal_tokens
 
 
 def _captures_trailing_spaced_value(name: str, tokens: tuple[str, ...], index: int) -> bool:
@@ -184,6 +184,7 @@ def _load_iosxe_registry() -> tuple[ParserEntry, ...]:
         importlib.import_module("yenie_parser.iosxe._genie_show_cdp"),
         importlib.import_module("yenie_parser.iosxe._genie_show_arp"),
         importlib.import_module("yenie_parser.iosxe._genie_show_fdb"),
+        importlib.import_module("yenie_parser.iosxe._genie_show_interface"),
     )
     entries: list[ParserEntry] = []
     for module in modules:

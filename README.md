@@ -3,8 +3,7 @@
 Yenie Parser is a small Python package for parsing Cisco CLI command output into
 structured dictionaries without importing the full Cisco Genie/pyATS stack.
 
-The initial IOS-XE parser set covers command templates adapted from Cisco
-Genie's `show_device_tracking.py` and `show_authentication_sessions.py` parser
+The IOS-XE parser set covers command templates adapted from Cisco Genie parser
 files. Results use Genie-compatible dictionary shapes where the upstream parser
 defines them.
 
@@ -58,5 +57,10 @@ project:
 - Source paths:
   - `src/genie/libs/parser/iosxe/show_device_tracking.py`
   - `src/genie/libs/parser/iosxe/show_authentication_sessions.py`
+  - `src/genie/libs/parser/iosxe/show_inventory.py`
+  - `src/genie/libs/parser/iosxe/show_cdp.py`
+  - `src/genie/libs/parser/iosxe/show_arp.py`
+  - `src/genie/libs/parser/iosxe/show_fdb.py`
+  - `src/genie/libs/parser/iosxe/show_interface.py`
 
 See `docs/conversions/` for conversion metadata.
