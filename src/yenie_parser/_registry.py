@@ -6,8 +6,10 @@ import importlib
 import inspect
 import re
 import warnings
+from collections import OrderedDict
 from dataclasses import dataclass
 from functools import cached_property
+from threading import RLock
 from typing import Any, Callable, Literal
 
 from yenie_parser.exceptions import (
@@ -24,9 +26,14 @@ OnFailure = Literal["none", "empty_dict", "raw_output"]
 
 _PLACEHOLDER_RE = re.compile(r"^\{(?P<name>[a-zA-Z_][a-zA-Z0-9_]*)\}$")
 _QUOTED_PLACEHOLDER_RE = re.compile(r'^"\{(?P<name>[a-zA-Z_][a-zA-Z0-9_]*)\}"$')
+_EMBEDDED_PLACEHOLDER_RE = re.compile(r"\{(?P<name>[a-zA-Z_][a-zA-Z0-9_]*)\}")
 _ON_FAILURE_VALUES = frozenset(("none", "empty_dict", "raw_output"))
 _PSEUDO_LITERAL_PLACEHOLDERS = {"database", "default", "details", "ipv4", "ipv6"}
 _TRAILING_SPACED_PLACEHOLDERS = {"interface", "interface_name", "intf_or_ip"}
+_FIND_MATCHES_CACHE_MAXSIZE = 1024
+_CACHE_LOCK = RLock()
+_REGISTRY_CACHE: dict[str, tuple["ParserEntry", ...]] = {}
+_FIND_MATCHES_CACHE: OrderedDict[tuple[str, str], tuple["CommandMatch", ...]] = OrderedDict()
 
 
 @dataclass(frozen=True)
@@ -42,7 +49,7 @@ class ParserEntry:
 
     @cached_property
     def placeholder_names(self) -> tuple[str, ...]:
-        return tuple(name for token in self._tokens if (name := _placeholder_name(token)))
+        return tuple(name for token in self._tokens for name in _placeholder_names(token))
 
     @cached_property
     def literal_count(self) -> int:
@@ -69,6 +76,8 @@ class ParserEntry:
                     pieces.append(fr"(?P<{name}>.+)")
                 else:
                     pieces.append(fr"(?P<{name}>\S+)")
+            elif token_pattern := _embedded_placeholder_pattern(token):
+                pieces.append(token_pattern)
             else:
                 pieces.append(re.escape(token))
         return re.compile(r"^" + r"\s+".join(pieces) + r"$", re.IGNORECASE)
@@ -236,9 +245,51 @@ def _placeholder_name(token: str) -> str | None:
     return None
 
 
+def _placeholder_names(token: str) -> tuple[str, ...]:
+    if name := _placeholder_name(token):
+        return (name,)
+    return tuple(match.group("name") for match in _EMBEDDED_PLACEHOLDER_RE.finditer(token))
+
+
+def _embedded_placeholder_pattern(token: str) -> str | None:
+    if not _EMBEDDED_PLACEHOLDER_RE.search(token):
+        return None
+
+    pieces = []
+    position = 0
+    for match in _EMBEDDED_PLACEHOLDER_RE.finditer(token):
+        pieces.append(re.escape(token[position : match.start()]))
+        pieces.append(fr"(?P<{match.group('name')}>\S+)")
+        position = match.end()
+    pieces.append(re.escape(token[position:]))
+    return "".join(pieces)
+
+
 def find_matches(platform: str, command: str) -> list[CommandMatch]:
-    matches = [entry_match for entry in get_registry(platform) if (entry_match := entry.match(command))]
+    platform_key = normalize_platform(platform)
+    normalized_command = normalize_command(command)
+    cache_key = (platform_key, normalized_command)
+
+    with _CACHE_LOCK:
+        if cache_key in _FIND_MATCHES_CACHE:
+            cached_matches = _FIND_MATCHES_CACHE.pop(cache_key)
+            _FIND_MATCHES_CACHE[cache_key] = cached_matches
+            return list(_copy_matches(cached_matches))
+
+    matches = [
+        entry_match
+        for entry in get_registry(platform_key)
+        if (entry_match := entry.match(normalized_command))
+    ]
     matches.sort(key=lambda match: match.score, reverse=True)
+    cached_matches = _copy_matches(matches)
+
+    with _CACHE_LOCK:
+        _FIND_MATCHES_CACHE[cache_key] = cached_matches
+        _FIND_MATCHES_CACHE.move_to_end(cache_key)
+        while len(_FIND_MATCHES_CACHE) > _FIND_MATCHES_CACHE_MAXSIZE:
+            _FIND_MATCHES_CACHE.popitem(last=False)
+
     return matches
 
 
@@ -246,11 +297,33 @@ def get_registry(platform: str) -> tuple[ParserEntry, ...]:
     platform_key = normalize_platform(platform)
     if platform_key != "iosxe":
         return ()
-    return _load_iosxe_registry()
+    with _CACHE_LOCK:
+        if platform_key not in _REGISTRY_CACHE:
+            _REGISTRY_CACHE[platform_key] = _load_iosxe_registry()
+        return _REGISTRY_CACHE[platform_key]
 
 
 def supported_commands(platform: str = "iosxe") -> tuple[str, ...]:
     return tuple(entry.template for entry in get_registry(platform))
+
+
+def clear_caches() -> None:
+    """Clear registry and command-match caches."""
+    with _CACHE_LOCK:
+        _REGISTRY_CACHE.clear()
+        _FIND_MATCHES_CACHE.clear()
+
+
+def _copy_matches(matches: tuple[CommandMatch, ...] | list[CommandMatch]) -> tuple[CommandMatch, ...]:
+    return tuple(
+        CommandMatch(
+            entry=match.entry,
+            kwargs=dict(match.kwargs),
+            exact_template=match.exact_template,
+            score=match.score,
+        )
+        for match in matches
+    )
 
 
 def _captures_trailing_text(tokens: tuple[str, ...], index: int) -> bool:
@@ -277,6 +350,7 @@ def _load_iosxe_registry() -> tuple[ParserEntry, ...]:
         importlib.import_module("yenie_parser.iosxe._genie_show_routing"),
         importlib.import_module("yenie_parser.iosxe._genie_show_aaa"),
         importlib.import_module("yenie_parser.iosxe._genie_show_cts"),
+        importlib.import_module("yenie_parser.iosxe._genie_show_platform"),
     )
     entries: list[ParserEntry] = []
     for module in modules:

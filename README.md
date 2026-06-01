@@ -127,6 +127,14 @@ Available command templates can be inspected with:
 commands = yenie_parser.supported_commands("iosxe")
 ```
 
+Parser registry and command-match metadata are cached after first use. If you
+are developing parser modules in a long-lived Python process, clear those caches
+with:
+
+```python
+yenie_parser.clear_caches()
+```
+
 ## Attribution
 
 Parser behavior is derived from the Apache-2.0 licensed Cisco Genie parser
@@ -145,5 +153,6 @@ project:
   - `src/genie/libs/parser/iosxe/show_routing.py`
   - `src/genie/libs/parser/iosxe/show_aaa.py`
   - `src/genie/libs/parser/iosxe/show_cts.py`
+  - `src/genie/libs/parser/iosxe/show_platform.py`
 
 See `docs/conversions/` for conversion metadata.

@@ -94,7 +94,7 @@ def test_cli_parse_strict_exits_nonzero_for_unsupported_command() -> None:
             "--platform",
             "iosxe",
             "--command",
-            "show version",
+            "show unsupported command",
             "--raw-output",
             "raw output",
             "-s",

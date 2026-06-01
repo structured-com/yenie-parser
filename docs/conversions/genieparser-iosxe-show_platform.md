@@ -1,0 +1,138 @@
+# Genie Parser Conversion: IOS-XE show_platform.py
+
+## Source
+
+- Upstream repository: https://github.com/CiscoTestAutomation/genieparser
+- Upstream source path: `src/genie/libs/parser/iosxe/show_platform.py`
+- Upstream branch/ref used: `96b1d205a28b16978fad840f5c080d2924efb548`
+- Upstream commit SHA: `96b1d205a28b16978fad840f5c080d2924efb548`
+- Conversion date: 2026-06-01
+- Local module: `yenie_parser.iosxe._genie_show_platform`
+
+## File Notes
+
+- All upstream classes with a `cli_command` attribute are adapted.
+- Upstream command templates are preserved exactly, including apparent typos such
+  as `show plaform software fed switch {switch_num} acl usage`.
+
+## Supported Command Templates
+
+- `show bootvar`
+- `show version`
+- `dir`
+- `dir {directory}`
+- `show redundancy`
+- `show redundancy states`
+- `show inventory`
+- `show platform`
+- `show boot`
+- `show switch detail`
+- `show switch`
+- `show environment all`
+- `show env all`
+- `show env fan`
+- `show env power`
+- `show env power all`
+- `show env rps`
+- `show env stack`
+- `show env temperature`
+- `show env temperature status`
+- `show module`
+- `show processes cpu sorted`
+- `show processes cpu sorted | include {key_word}`
+- `show processes cpu sorted {sort_time}`
+- `show processes cpu sorted | exclude {exclude}`
+- `show processes cpu sorted {sort_time} | include {key_word}`
+- `show processes cpu sorted {sort_time} | exclude {exclude}`
+- `show processes cpu platform`
+- `show environment`
+- `show environment | include {include}`
+- `show processes cpu`
+- `show processes cpu | include {key_word}`
+- `show version RP {rp} {status}`
+- `show platform power`
+- `show processes cpu history`
+- `show processes memory`
+- `show processes memory | include {include}`
+- `show processes memory | exclude {exclude}`
+- `show processes memory | section {section}`
+- `show processes memory sorted`
+- `show platform integrity`
+- `show platform integrity sign nonce {nonce}`
+- `show platform integrity {signature}`
+- `show platform hardware fed {switch} {mode} fwd-asic resource tcam utilization`
+- `show platform hardware fed active fwd-asic resource tcam utilization`
+- `show platform hardware fed switch {mode} fwd-asic resource tcam utilization`
+- `show platform resources`
+- `show platform sudi certificate sign nonce {signature}`
+- `show platform sudi certificate`
+- `show environment status`
+- `show platform sudi pki`
+- `show platform hardware fed {switch} active fwd-asic resource tcam table pbr record 0 format 0 | begin {nat_region}`
+- `show platform hardware fed active fwd-asic resource tcam table pbr record 0 format 0 | begin {nat_region}`
+- `show platform hardware fed switch {switch_type} fwd-asic resource tcam table pbr record 0 format 0 | begin {nat_region}`
+- `show platform nat translations active statistics`
+- `show platform nat translations active`
+- `show platform hardware fed switch active fwd-asic resource tcam table acl | begin {INPUT_NAT}`
+- `show version running`
+- `show call admission statistics`
+- `show call admission statistics detailed`
+- `show rep topology segment {no}`
+- `show platform packet-trace statistics`
+- `show platform packet-trace summary`
+- `show platform packet-trace packet all`
+- `show platform packet-trace packet {packet_id}`
+- `show system mtu`
+- `show processes cpu platform sorted`
+- `show file systems`
+- `show redundancy config-sync failures mcl`
+- `show platform authentication sbinfo interface {interface}`
+- `show platform host-access-table {intf}`
+- `show platform pm port-data {interface}`
+- `show platform hardware fed {switch} active fwd-asic resource rewrite utilization`
+- `show platform hardware fed active fwd-asic resource rewrite utilization`
+- `show platform hardware fed switch active matm macTable`
+- `show switch stack-ring speed`
+- `show platform usb status`
+- `show platform pm interface-numbers`
+- `show processes {processid}`
+- `show xfsu eligibility`
+- `show switch stack-ports detail`
+- `show xfsu status`
+- `show graceful-reload`
+- `show {filesystem} filesys`
+- `show file information {file}`
+- `show file descriptors detail`
+- `show time-range {time_range_name}`
+- `show platform pm etherchannel {ec_channel_group_id} group-mask`
+- `test platform software database get-n all ios_oper/{component}`
+- `show plaform software fed switch {switch_num} acl usage`
+- `show plaform software fed switch {switch_num} acl usage | include {acl_name}`
+- `show rep topology`
+- `show rep topology detail`
+- `show platform frontend-controller version 0 {switch_num}`
+- `show platform nat translations standby`
+- `show platform nat translations standby statistics`
+- `show platform software cpm switch {mode} BP {mode2} packets {controlmode} {transmitmode}`
+- `show platform software cpm switch {mode} B0 packets {controlmode} {transmitmode}`
+- `show platform uplink`
+- `show platform software infrastructure punt`
+- `show platform diag`
+- `show environment temperature all`
+- `show platform software wccp web-cache counters`
+- `show xdr linecard`
+- `show zone-pair security`
+- `show platform hardware qfp active feature nat datapath port`
+- `show platform hardware qfp active feature nat datapath map`
+- `show platform hardware qfp active feature nat datapath esp`
+- `show platform hardware iomd {iomd} ethernet_controllers phy {phy} histogram`
+- `show platform management-interface`
+- `show plat hard slot {slot} sen consumer all`
+- `show system stats`
+- `show platform hardware qfp active feature nat66 datapath statistics`
+- `show platform software {nat_type} rp {rp_location} prefix-translation`
+- `show platform hardware subslot {subslot} module host-if statistics`
+- `show platform software infrastructure thread fastpath.`
+- `show platform hardware cpp active feature nat datapath sess-dump`
+- `show platform software fed {switch} {mode} ipv6 route summary | include {match}`
+- `show platform software fed {mode} ipv6 route summary | include {match}`
