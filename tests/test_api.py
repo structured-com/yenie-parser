@@ -56,7 +56,12 @@ def test_parse_strict_raises_for_unsupported_platform() -> None:
 
 def test_parse_strict_raises_for_unsupported_command() -> None:
     with pytest.raises(UnsupportedCommandError):
-        yenie_parser.parse(platform="iosxe", command="show version", raw_output="", strict=True)
+        yenie_parser.parse(
+            platform="iosxe",
+            command="show unsupported command",
+            raw_output="",
+            strict=True,
+        )
 
 
 def test_parse_accepts_concrete_placeholder_values() -> None:
@@ -136,7 +141,7 @@ def test_parse_returns_none_for_unparsed_output_by_default() -> None:
 def test_parse_on_failure_empty_dict_returns_empty_dict() -> None:
     parsed = yenie_parser.parse(
         platform="iosxe",
-        command="show version",
+        command="show unsupported command",
         raw_output="raw output",
         on_failure="empty_dict",
     )
@@ -149,7 +154,7 @@ def test_parse_on_failure_raw_output_returns_original_output() -> None:
 
     parsed = yenie_parser.parse(
         platform="iosxe",
-        command="show version",
+        command="show unsupported command",
         raw_output=raw_output,
         on_failure="raw_output",
     )
@@ -161,7 +166,7 @@ def test_parse_strict_overrides_on_failure() -> None:
     with pytest.raises(UnsupportedCommandError):
         yenie_parser.parse(
             platform="iosxe",
-            command="show version",
+            command="show unsupported command",
             raw_output="raw output",
             strict=True,
             on_failure="raw_output",
@@ -182,7 +187,7 @@ def test_parse_warns_and_returns_configured_fallback(
     with pytest.warns(yenie_parser.YenieParserWarning, match="Unsupported command"):
         parsed = yenie_parser.parse(
             platform="iosxe",
-            command="show version",
+            command="show unsupported command",
             raw_output="raw output",
             warn=True,
             on_failure=on_failure,
@@ -196,7 +201,7 @@ def test_parse_warns_before_strict_exception() -> None:
         with pytest.raises(UnsupportedCommandError):
             yenie_parser.parse(
                 platform="iosxe",
-                command="show version",
+                command="show unsupported command",
                 raw_output="raw output",
                 strict=True,
                 warn=True,

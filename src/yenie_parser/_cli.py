@@ -232,9 +232,10 @@ def _pyproject_info() -> dict[str, str]:
         project = pyproject.get("project", {})
         if project.get("name") != _PACKAGE_NAME:
             continue
+        project_version = _string_value(project.get("version"))
         return {
             "name": _string_value(project.get("name")),
-            "version": _string_value(project.get("version")),
+            "version": yenie_parser.__version__ if project_version else "",
             "description": _string_value(project.get("description")),
             "requires_python": _string_value(project.get("requires-python")),
             "license": _string_value(project.get("license")),

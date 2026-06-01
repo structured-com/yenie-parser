@@ -26,6 +26,7 @@ OnFailure = Literal["none", "empty_dict", "raw_output"]
 
 _PLACEHOLDER_RE = re.compile(r"^\{(?P<name>[a-zA-Z_][a-zA-Z0-9_]*)\}$")
 _QUOTED_PLACEHOLDER_RE = re.compile(r'^"\{(?P<name>[a-zA-Z_][a-zA-Z0-9_]*)\}"$')
+_EMBEDDED_PLACEHOLDER_RE = re.compile(r"\{(?P<name>[a-zA-Z_][a-zA-Z0-9_]*)\}")
 _ON_FAILURE_VALUES = frozenset(("none", "empty_dict", "raw_output"))
 _PSEUDO_LITERAL_PLACEHOLDERS = {"database", "default", "details", "ipv4", "ipv6"}
 _TRAILING_SPACED_PLACEHOLDERS = {"interface", "interface_name", "intf_or_ip"}
@@ -48,7 +49,7 @@ class ParserEntry:
 
     @cached_property
     def placeholder_names(self) -> tuple[str, ...]:
-        return tuple(name for token in self._tokens if (name := _placeholder_name(token)))
+        return tuple(name for token in self._tokens for name in _placeholder_names(token))
 
     @cached_property
     def literal_count(self) -> int:
@@ -75,6 +76,8 @@ class ParserEntry:
                     pieces.append(fr"(?P<{name}>.+)")
                 else:
                     pieces.append(fr"(?P<{name}>\S+)")
+            elif token_pattern := _embedded_placeholder_pattern(token):
+                pieces.append(token_pattern)
             else:
                 pieces.append(re.escape(token))
         return re.compile(r"^" + r"\s+".join(pieces) + r"$", re.IGNORECASE)
@@ -242,6 +245,26 @@ def _placeholder_name(token: str) -> str | None:
     return None
 
 
+def _placeholder_names(token: str) -> tuple[str, ...]:
+    if name := _placeholder_name(token):
+        return (name,)
+    return tuple(match.group("name") for match in _EMBEDDED_PLACEHOLDER_RE.finditer(token))
+
+
+def _embedded_placeholder_pattern(token: str) -> str | None:
+    if not _EMBEDDED_PLACEHOLDER_RE.search(token):
+        return None
+
+    pieces = []
+    position = 0
+    for match in _EMBEDDED_PLACEHOLDER_RE.finditer(token):
+        pieces.append(re.escape(token[position : match.start()]))
+        pieces.append(fr"(?P<{match.group('name')}>\S+)")
+        position = match.end()
+    pieces.append(re.escape(token[position:]))
+    return "".join(pieces)
+
+
 def find_matches(platform: str, command: str) -> list[CommandMatch]:
     platform_key = normalize_platform(platform)
     normalized_command = normalize_command(command)
@@ -327,6 +350,7 @@ def _load_iosxe_registry() -> tuple[ParserEntry, ...]:
         importlib.import_module("yenie_parser.iosxe._genie_show_routing"),
         importlib.import_module("yenie_parser.iosxe._genie_show_aaa"),
         importlib.import_module("yenie_parser.iosxe._genie_show_cts"),
+        importlib.import_module("yenie_parser.iosxe._genie_show_platform"),
     )
     entries: list[ParserEntry] = []
     for module in modules:
