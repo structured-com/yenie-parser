@@ -1,3 +1,6 @@
+import time
+from collections.abc import Iterator
+from concurrent.futures import ThreadPoolExecutor
 from importlib.metadata import version
 
 import pytest
@@ -10,6 +13,13 @@ from yenie_parser import (
     UnsupportedPlatformError,
 )
 from yenie_parser import _registry as registry
+
+
+@pytest.fixture
+def isolated_caches() -> Iterator[None]:
+    yenie_parser.clear_caches()
+    yield
+    yenie_parser.clear_caches()
 
 
 def test_parse_dispatches_with_case_and_whitespace_normalization() -> None:
@@ -214,7 +224,9 @@ def test_parse_strict_raises_for_unparsed_output() -> None:
         )
 
 
-def test_parse_strict_raises_parser_execution_error(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_parse_strict_raises_parser_execution_error(
+    monkeypatch: pytest.MonkeyPatch, isolated_caches: None
+) -> None:
     class BrokenParser:
         def cli(self, output: str | None = None) -> dict:
             raise RuntimeError("boom")
@@ -243,7 +255,9 @@ def test_parse_strict_raises_parser_execution_error(monkeypatch: pytest.MonkeyPa
     assert isinstance(exc_info.value.__cause__, RuntimeError)
 
 
-def test_parse_handles_ambiguous_command(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_parse_handles_ambiguous_command(
+    monkeypatch: pytest.MonkeyPatch, isolated_caches: None
+) -> None:
     class ParserA:
         def cli(self, output: str | None = None) -> dict:
             return {"parser": "a"}
@@ -283,6 +297,182 @@ def test_parse_handles_ambiguous_command(monkeypatch: pytest.MonkeyPatch) -> Non
             raw_output="raw output",
             strict=True,
         )
+
+
+def test_repeated_parse_calls_reuse_iosxe_registry(
+    monkeypatch: pytest.MonkeyPatch, isolated_caches: None
+) -> None:
+    load_count = 0
+
+    class CountingParser:
+        instances = 0
+
+        def __init__(self) -> None:
+            type(self).instances += 1
+
+        def cli(self, output: str | None = None) -> dict:
+            return {"output": output}
+
+    def load_registry() -> tuple[registry.ParserEntry, ...]:
+        nonlocal load_count
+        load_count += 1
+        return (
+            registry.ParserEntry(
+                platform="iosxe",
+                template="show cached",
+                parser_class=CountingParser,
+                source_order=1,
+            ),
+        )
+
+    monkeypatch.setattr(registry, "_load_iosxe_registry", load_registry)
+
+    assert (
+        yenie_parser.parse(platform="iosxe", command="show cached", raw_output="first")
+        == {"output": "first"}
+    )
+    assert (
+        yenie_parser.parse(platform="iosxe", command="show cached", raw_output="second")
+        == {"output": "second"}
+    )
+    assert load_count == 1
+    assert CountingParser.instances == 2
+
+
+def test_different_commands_reuse_iosxe_registry(
+    monkeypatch: pytest.MonkeyPatch, isolated_caches: None
+) -> None:
+    load_count = 0
+
+    class EchoParser:
+        def cli(self, output: str | None = None) -> dict:
+            return {"output": output}
+
+    def load_registry() -> tuple[registry.ParserEntry, ...]:
+        nonlocal load_count
+        load_count += 1
+        return (
+            registry.ParserEntry(
+                platform="iosxe",
+                template="show cached one",
+                parser_class=EchoParser,
+                source_order=1,
+            ),
+            registry.ParserEntry(
+                platform="iosxe",
+                template="show cached two",
+                parser_class=EchoParser,
+                source_order=2,
+            ),
+        )
+
+    monkeypatch.setattr(registry, "_load_iosxe_registry", load_registry)
+
+    assert (
+        yenie_parser.parse(platform="iosxe", command="show cached one", raw_output="one")
+        == {"output": "one"}
+    )
+    assert (
+        yenie_parser.parse(platform="iosxe", command="show cached two", raw_output="two")
+        == {"output": "two"}
+    )
+    assert load_count == 1
+
+
+def test_clear_caches_reloads_iosxe_registry(
+    monkeypatch: pytest.MonkeyPatch, isolated_caches: None
+) -> None:
+    load_count = 0
+
+    class EchoParser:
+        def cli(self, output: str | None = None) -> dict:
+            return {"output": output}
+
+    def load_registry() -> tuple[registry.ParserEntry, ...]:
+        nonlocal load_count
+        load_count += 1
+        return (
+            registry.ParserEntry(
+                platform="iosxe",
+                template="show cached",
+                parser_class=EchoParser,
+                source_order=load_count,
+            ),
+        )
+
+    monkeypatch.setattr(registry, "_load_iosxe_registry", load_registry)
+
+    first_registry = registry.get_registry("iosxe")
+    assert registry.get_registry(" IOSXE ") is first_registry
+    assert load_count == 1
+
+    yenie_parser.clear_caches()
+
+    second_registry = registry.get_registry("iosxe")
+    assert second_registry is not first_registry
+    assert load_count == 2
+
+
+def test_find_matches_cache_returns_fresh_kwargs(
+    monkeypatch: pytest.MonkeyPatch, isolated_caches: None
+) -> None:
+    class EchoParser:
+        def cli(self, value: str, output: str | None = None) -> dict:
+            return {"value": value, "output": output}
+
+    monkeypatch.setattr(
+        registry,
+        "_load_iosxe_registry",
+        lambda: (
+            registry.ParserEntry(
+                platform="iosxe",
+                template="show cached {value}",
+                parser_class=EchoParser,
+                source_order=1,
+            ),
+        ),
+    )
+
+    first_matches = registry.find_matches("iosxe", "show cached thing")
+    first_matches[0].kwargs["value"] = "mutated"
+
+    second_matches = registry.find_matches("iosxe", "show cached thing")
+
+    assert second_matches[0].kwargs == {"value": "thing"}
+
+
+def test_threaded_cold_start_reuses_single_registry_load(
+    monkeypatch: pytest.MonkeyPatch, isolated_caches: None
+) -> None:
+    load_count = 0
+
+    class EchoParser:
+        def cli(self, output: str | None = None) -> dict:
+            return {"output": output}
+
+    def load_registry() -> tuple[registry.ParserEntry, ...]:
+        nonlocal load_count
+        load_count += 1
+        time.sleep(0.02)
+        return (
+            registry.ParserEntry(
+                platform="iosxe",
+                template="show cached",
+                parser_class=EchoParser,
+                source_order=1,
+            ),
+        )
+
+    monkeypatch.setattr(registry, "_load_iosxe_registry", load_registry)
+
+    def parse_cached(_: int) -> dict | str | None:
+        return yenie_parser.parse(platform="iosxe", command="show cached", raw_output="raw")
+
+    with ThreadPoolExecutor(max_workers=8) as executor:
+        results = list(executor.map(parse_cached, range(16)))
+
+    assert results == [{"output": "raw"}] * 16
+    assert load_count == 1
 
 
 def test_supported_commands_includes_converted_upstream_files() -> None:

@@ -6,8 +6,10 @@ import importlib
 import inspect
 import re
 import warnings
+from collections import OrderedDict
 from dataclasses import dataclass
 from functools import cached_property
+from threading import RLock
 from typing import Any, Callable, Literal
 
 from yenie_parser.exceptions import (
@@ -27,6 +29,10 @@ _QUOTED_PLACEHOLDER_RE = re.compile(r'^"\{(?P<name>[a-zA-Z_][a-zA-Z0-9_]*)\}"$')
 _ON_FAILURE_VALUES = frozenset(("none", "empty_dict", "raw_output"))
 _PSEUDO_LITERAL_PLACEHOLDERS = {"database", "default", "details", "ipv4", "ipv6"}
 _TRAILING_SPACED_PLACEHOLDERS = {"interface", "interface_name", "intf_or_ip"}
+_FIND_MATCHES_CACHE_MAXSIZE = 1024
+_CACHE_LOCK = RLock()
+_REGISTRY_CACHE: dict[str, tuple["ParserEntry", ...]] = {}
+_FIND_MATCHES_CACHE: OrderedDict[tuple[str, str], tuple["CommandMatch", ...]] = OrderedDict()
 
 
 @dataclass(frozen=True)
@@ -237,8 +243,30 @@ def _placeholder_name(token: str) -> str | None:
 
 
 def find_matches(platform: str, command: str) -> list[CommandMatch]:
-    matches = [entry_match for entry in get_registry(platform) if (entry_match := entry.match(command))]
+    platform_key = normalize_platform(platform)
+    normalized_command = normalize_command(command)
+    cache_key = (platform_key, normalized_command)
+
+    with _CACHE_LOCK:
+        if cache_key in _FIND_MATCHES_CACHE:
+            cached_matches = _FIND_MATCHES_CACHE.pop(cache_key)
+            _FIND_MATCHES_CACHE[cache_key] = cached_matches
+            return list(_copy_matches(cached_matches))
+
+    matches = [
+        entry_match
+        for entry in get_registry(platform_key)
+        if (entry_match := entry.match(normalized_command))
+    ]
     matches.sort(key=lambda match: match.score, reverse=True)
+    cached_matches = _copy_matches(matches)
+
+    with _CACHE_LOCK:
+        _FIND_MATCHES_CACHE[cache_key] = cached_matches
+        _FIND_MATCHES_CACHE.move_to_end(cache_key)
+        while len(_FIND_MATCHES_CACHE) > _FIND_MATCHES_CACHE_MAXSIZE:
+            _FIND_MATCHES_CACHE.popitem(last=False)
+
     return matches
 
 
@@ -246,11 +274,33 @@ def get_registry(platform: str) -> tuple[ParserEntry, ...]:
     platform_key = normalize_platform(platform)
     if platform_key != "iosxe":
         return ()
-    return _load_iosxe_registry()
+    with _CACHE_LOCK:
+        if platform_key not in _REGISTRY_CACHE:
+            _REGISTRY_CACHE[platform_key] = _load_iosxe_registry()
+        return _REGISTRY_CACHE[platform_key]
 
 
 def supported_commands(platform: str = "iosxe") -> tuple[str, ...]:
     return tuple(entry.template for entry in get_registry(platform))
+
+
+def clear_caches() -> None:
+    """Clear registry and command-match caches."""
+    with _CACHE_LOCK:
+        _REGISTRY_CACHE.clear()
+        _FIND_MATCHES_CACHE.clear()
+
+
+def _copy_matches(matches: tuple[CommandMatch, ...] | list[CommandMatch]) -> tuple[CommandMatch, ...]:
+    return tuple(
+        CommandMatch(
+            entry=match.entry,
+            kwargs=dict(match.kwargs),
+            exact_template=match.exact_template,
+            score=match.score,
+        )
+        for match in matches
+    )
 
 
 def _captures_trailing_text(tokens: tuple[str, ...], index: int) -> bool:

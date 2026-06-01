@@ -54,6 +54,11 @@ UV_CACHE_DIR=/tmp/uv-cache uv build
 on_failure="none")` dispatches to an internal parser class through `ParserEntry`
 records in `_registry.py`.
 
+The registry and normalized command matches are cached after first use so
+collectors can call `parse(...)` repeatedly without rebuilding parser metadata.
+Use `yenie_parser.clear_caches()` in tests or long-lived development processes
+that intentionally change parser registration state.
+
 Command matching rules:
 
 - Platform is stripped and lowercased.
@@ -235,4 +240,3 @@ git tag v0.1.0
 git push --tags
 uv publish
 ```
-
