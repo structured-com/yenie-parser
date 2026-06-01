@@ -206,3 +206,33 @@ python -m venv /tmp/yenie-parser-pip-venv
 
 If rebuilding the same version repeatedly, uv may reuse a cached wheel. Prefer
 bumping the version for meaningful API/package changes.
+
+# Build Notes (Manual Steps)
+
+This is for building notes for the developer.
+
+Do normal git's on a dev branch:
+```
+git switch -c dev
+```
+
+Mark version like 0.2.0.dev0 where 0.2.0 is non-existing next version.
+
+When dev branch is ready:
+
+build with:
+```
+uv build --no-sources
+```
+this will create files in /dist/ accordingly for that version.
+
+
+Then Merge Dev to main.
+
+then publish to PyPi. Tagging should happen on main branch, not dev.
+```
+git tag v0.1.0
+git push --tags
+uv publish
+```
+
