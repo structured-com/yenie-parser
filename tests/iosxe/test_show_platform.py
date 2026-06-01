@@ -14,6 +14,96 @@ MEMORY_OUTPUT = "Processor Pool Total: 10147887840 Used: 485435960 Free: 9662451
 NAT_TRANSLATION_OUTPUT = "TCP 135.0.0.2:0 192.0.0.2:0 193.0.0.2:0 193.0.0.2:0"
 NAT_STATS_OUTPUT = "NAT Type : Static\nNetflow Type : NA\nFlow Record  : Disabled\nDynamic NAT entries  : 0 entries\nStatic NAT entries : 0 entries\nTotal NAT entries : 0 entries\nTotal HW Resource (TCAM): 26 of 27648 /0 .09% utilization"
 SYSTEM_STATS_OUTPUT = "Syspage index for the Fastpath thread: 6"
+SHOW_VERSION_C9300_OUTPUT = """Cisco IOS XE Software, Version 17.03.04
+Cisco IOS Software [Amsterdam], Catalyst L3 Switch Software (CAT9K_IOSXE), Version 17.3.4, RELEASE SOFTWARE (fc3)
+Technical Support: http://www.cisco.com/techsupport
+Copyright (c) 1986-2021 by Cisco Systems, Inc.
+Compiled Sat 03-Jul-21 01:55 by mcpre
+
+
+Cisco IOS-XE software, Copyright (c) 2005-2021 by cisco Systems, Inc.
+All rights reserved.  Certain components of Cisco IOS-XE software are
+licensed under the GNU General Public License ("GPL") Version 2.0.  The
+software code licensed under GPL Version 2.0 is free software that comes
+with ABSOLUTELY NO WARRANTY.  You can redistribute and/or modify such
+GPL code under the terms of GPL Version 2.0.  For more details, see the
+documentation or "License Notice" file accompanying the IOS-XE software,
+or the applicable URL provided on the flyer accompanying the IOS-XE
+software.
+
+
+ROM: IOS-XE ROMMON
+BOOTLDR: System Bootstrap, Version 17.3.2r, RELEASE SOFTWARE (P)
+
+chi-csw-01 uptime is 4 years, 5 weeks, 6 days, 3 hours, 55 minutes
+Uptime for this control processor is 4 years, 5 weeks, 6 days, 3 hours, 56 minutes
+System returned to ROM by Image Install
+System restarted at 14:51:16 UTC Fri Apr 22 2022
+System image file is "flash:packages.conf"
+Last reload reason: Image Install
+
+
+
+This product contains cryptographic features and is subject to United
+States and local country laws governing import, export, transfer and
+use. Delivery of Cisco cryptographic products does not imply
+third-party authority to import, export, distribute or use encryption.
+Importers, exporters, distributors and users are responsible for
+compliance with U.S. and local country laws. By using this product you
+agree to comply with applicable laws and regulations. If you are unable
+to comply with U.S. and local laws, return this product immediately.
+
+A summary of U.S. laws governing Cisco cryptographic products may be found at:
+http://www.cisco.com/wwl/export/crypto/tool/stqrg.html
+
+If you require further assistance please contact us by sending email to
+export@cisco.com.
+
+
+Technology Package License Information:
+
+------------------------------------------------------------------------------
+Technology-package                                     Technology-package
+Current                        Type                       Next reboot
+------------------------------------------------------------------------------
+network-advantage   \tSmart License                 \t network-advantage
+dna-advantage       \tSubscription Smart License    \t dna-advantage
+AIR License Level: AIR DNA Advantage
+Next reload AIR license Level: AIR DNA Advantage
+
+
+Smart Licensing Status: Registration Not Applicable/Not Applicable
+
+cisco C9300-24T (X86) processor with 1331366K/6147K bytes of memory.
+Processor board ID FJC2402T0HV
+20 Virtual Ethernet interfaces
+28 Gigabit Ethernet interfaces
+8 Ten Gigabit Ethernet interfaces
+2 TwentyFive Gigabit Ethernet interfaces
+2 Forty Gigabit Ethernet interfaces
+2048K bytes of non-volatile configuration memory.
+8388608K bytes of physical memory.
+1638400K bytes of Crash Files at crashinfo:.
+11264000K bytes of Flash at flash:.
+117219783K bytes of USB Flash at usbflash1:.
+
+Base Ethernet MAC Address          : 4c:e1:76:25:67:00
+Motherboard Assembly Number        : 73-18270-03
+Motherboard Serial Number          : FJZ24010EPA
+Model Revision Number              : A0
+Motherboard Revision Number        : B0
+Model Number                       : C9300-24T
+System Serial Number               : FJC2402T0HV
+CLEI Code Number                   :
+
+
+Switch Ports Model              SW Version        SW Image              Mode
+------ ----- -----              ----------        ----------            ----
+*    1 41    C9300-24T          17.03.04          CAT9K_IOSXE           INSTALL
+
+
+Configuration register is 0x102
+"""
 
 SHOW_PLATFORM_CASES = {
     "ShowBootvar": ({}, "BOOT variable = flash:image.bin;\nConfiguration register is 0x2102"),
@@ -154,6 +244,30 @@ def test_parse_accepts_show_platform_exact_command() -> None:
     )
 
     assert parsed["main"]["chassis"] == "ASR1006"
+
+
+def test_parse_accepts_c9300_show_version_stack_table() -> None:
+    parsed = yenie_parser.parse(
+        platform="iosxe",
+        command="show version",
+        raw_output=SHOW_VERSION_C9300_OUTPUT,
+        strict=True,
+    )
+
+    version = parsed["version"]
+    assert version["xe_version"] == "17.03.04"
+    assert version["version"] == "17.3.4"
+    assert version["hostname"] == "chi-csw-01"
+    assert version["system_image"] == "flash:packages.conf"
+    assert "------" not in version["switch_num"]
+
+    switch = version["switch_num"]["1"]
+    assert switch["active"] is True
+    assert switch["ports"] == "41"
+    assert switch["model"] == "C9300-24T"
+    assert switch["sw_ver"] == "17.03.04"
+    assert switch["sw_image"] == "CAT9K_IOSXE"
+    assert switch["mode"] == "INSTALL"
 
 
 def test_parse_accepts_show_bootvar_exact_command() -> None:

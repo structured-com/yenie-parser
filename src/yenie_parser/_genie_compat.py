@@ -78,13 +78,14 @@ def oper_fill_tabular(  # noqa: N802
     del device_os, kwargs
     entries: dict[TypingAny, dict[str, TypingAny]] = {}
     index_columns = index or [0]
+    normalized_header_fields = [field.strip() for field in header_fields if field.strip()]
     parsing_rows = False
 
     for raw_line in device_output.splitlines():
         line = raw_line.strip()
-        if not line or set(line) <= {"-"}:
+        if not line or set("".join(line.split())) <= {"-"}:
             continue
-        if all(field in line for field in header_fields):
+        if all(field in line for field in normalized_header_fields):
             parsing_rows = True
             continue
         if not parsing_rows:
@@ -93,6 +94,8 @@ def oper_fill_tabular(  # noqa: N802
         columns = line.split()
         if len(columns) < len(label_fields):
             continue
+        if columns[0] == "*" and len(columns) > len(label_fields):
+            columns = [f"*{columns[1]}", *columns[2:]]
         if len(columns) > len(label_fields):
             columns = columns[: len(label_fields) - 1] + [" ".join(columns[len(label_fields) - 1 :])]
 
