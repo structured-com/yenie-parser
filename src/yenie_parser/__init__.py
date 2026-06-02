@@ -2,7 +2,7 @@
 
 from importlib.metadata import version
 
-from yenie_parser._registry import clear_caches, parse, supported_commands
+from yenie_parser._registry import clear_caches, parse, preload, supported_commands
 from yenie_parser.exceptions import (
     AmbiguousCommandError,
     ParserExecutionError,
@@ -26,5 +26,6 @@ __all__ = [
     "__version__",
     "clear_caches",
     "parse",
+    "preload",
     "supported_commands",
 ]

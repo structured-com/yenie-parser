@@ -56,8 +56,10 @@ records in `_registry.py`.
 
 The registry and normalized command matches are cached after first use so
 collectors can call `parse(...)` repeatedly without rebuilding parser metadata.
-Use `yenie_parser.clear_caches()` in tests or long-lived development processes
-that intentionally change parser registration state.
+Call `yenie_parser.preload(platform="iosxe", commands=[...])` during collector
+startup to move registry and command-match warmup out of timed parse paths. Use
+`yenie_parser.clear_caches()` in tests or long-lived development processes that
+intentionally change parser registration state.
 
 Command matching rules:
 

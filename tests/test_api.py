@@ -480,6 +480,154 @@ def test_threaded_cold_start_reuses_single_registry_load(
     assert load_count == 1
 
 
+def test_preload_warms_registry_without_parser_instantiation(
+    monkeypatch: pytest.MonkeyPatch, isolated_caches: None
+) -> None:
+    load_count = 0
+
+    class CountingParser:
+        instances = 0
+
+        def __init__(self) -> None:
+            type(self).instances += 1
+
+        def cli(self, output: str | None = None) -> dict:
+            return {"output": output}
+
+    def load_registry() -> tuple[registry.ParserEntry, ...]:
+        nonlocal load_count
+        load_count += 1
+        return (
+            registry.ParserEntry(
+                platform="iosxe",
+                template="show cached",
+                parser_class=CountingParser,
+                source_order=1,
+            ),
+        )
+
+    monkeypatch.setattr(registry, "_load_iosxe_registry", load_registry)
+
+    yenie_parser.preload()
+
+    assert load_count == 1
+    assert CountingParser.instances == 0
+
+    assert (
+        yenie_parser.parse(platform="iosxe", command="show cached", raw_output="raw")
+        == {"output": "raw"}
+    )
+    assert load_count == 1
+    assert CountingParser.instances == 1
+
+
+def test_preload_with_commands_warms_exact_command_matches(
+    monkeypatch: pytest.MonkeyPatch, isolated_caches: None
+) -> None:
+    class CountingParser:
+        instances = 0
+
+        def __init__(self) -> None:
+            type(self).instances += 1
+
+        def cli(self, value: str, output: str | None = None) -> dict:
+            return {"value": value, "output": output}
+
+    monkeypatch.setattr(
+        registry,
+        "_load_iosxe_registry",
+        lambda: (
+            registry.ParserEntry(
+                platform="iosxe",
+                template="show cached {value}",
+                parser_class=CountingParser,
+                source_order=1,
+            ),
+        ),
+    )
+
+    yenie_parser.preload(platform=" IOSXE ", commands=["show cached thing"])
+
+    assert ("iosxe", "show cached thing") in registry._FIND_MATCHES_CACHE
+    assert CountingParser.instances == 0
+
+    assert (
+        yenie_parser.parse(platform="iosxe", command="show cached thing", raw_output="raw")
+        == {"value": "thing", "output": "raw"}
+    )
+    assert CountingParser.instances == 1
+
+
+def test_preload_none_warms_all_template_matches_with_bounded_cache(
+    monkeypatch: pytest.MonkeyPatch, isolated_caches: None
+) -> None:
+    class EchoParser:
+        def cli(self, output: str | None = None) -> dict:
+            return {"output": output}
+
+    monkeypatch.setattr(
+        registry,
+        "_load_iosxe_registry",
+        lambda: (
+            registry.ParserEntry(
+                platform="iosxe",
+                template="show cached one",
+                parser_class=EchoParser,
+                source_order=1,
+            ),
+            registry.ParserEntry(
+                platform="iosxe",
+                template="show cached two",
+                parser_class=EchoParser,
+                source_order=2,
+            ),
+            registry.ParserEntry(
+                platform="iosxe",
+                template="show cached three",
+                parser_class=EchoParser,
+                source_order=3,
+            ),
+        ),
+    )
+    monkeypatch.setattr(registry, "_FIND_MATCHES_CACHE_MAXSIZE", 2)
+
+    yenie_parser.preload(commands=None)
+
+    assert len(registry._FIND_MATCHES_CACHE) == 2
+    assert ("iosxe", "show cached two") in registry._FIND_MATCHES_CACHE
+    assert ("iosxe", "show cached three") in registry._FIND_MATCHES_CACHE
+
+
+def test_preload_empty_commands_warms_entry_metadata_without_match_cache(
+    monkeypatch: pytest.MonkeyPatch, isolated_caches: None
+) -> None:
+    class EchoParser:
+        def cli(self, output: str | None = None) -> dict:
+            return {"output": output}
+
+    entry = registry.ParserEntry(
+        platform="iosxe",
+        template="show cached {value}",
+        parser_class=EchoParser,
+        source_order=1,
+    )
+    monkeypatch.setattr(registry, "_load_iosxe_registry", lambda: (entry,))
+
+    yenie_parser.preload(commands=[])
+
+    assert registry._FIND_MATCHES_CACHE == {}
+    assert entry.__dict__["normalized_template"] == "show cached {value}"
+    assert entry.__dict__["placeholder_names"] == ("value",)
+    assert entry.__dict__["literal_count"] == 2
+    assert entry.__dict__["_tokens"] == ("show", "cached", "{value}")
+    assert "_pattern" in entry.__dict__
+
+
+def test_preload_raises_for_unsupported_platform(isolated_caches: None) -> None:
+    with pytest.raises(UnsupportedPlatformError):
+        yenie_parser.preload(platform="nxos")
+
+
 def test_supported_commands_includes_converted_upstream_files() -> None:
     commands = set(yenie_parser.supported_commands("iosxe"))
 

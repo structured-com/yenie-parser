@@ -7,6 +7,7 @@ import inspect
 import re
 import warnings
 from collections import OrderedDict
+from collections.abc import Iterable
 from dataclasses import dataclass
 from functools import cached_property
 from threading import RLock
@@ -307,11 +308,34 @@ def supported_commands(platform: str = "iosxe") -> tuple[str, ...]:
     return tuple(entry.template for entry in get_registry(platform))
 
 
+def preload(platform: str = "iosxe", commands: Iterable[str] | None = None) -> None:
+    """Warm parser registry and command-match caches."""
+    platform_key = normalize_platform(platform)
+    entries = get_registry(platform_key)
+    if platform_key != "iosxe":
+        raise UnsupportedPlatformError(f"Unsupported platform: {platform!r}")
+
+    for entry in entries:
+        _warm_entry(entry)
+
+    command_texts = (entry.template for entry in entries) if commands is None else commands
+    for command in command_texts:
+        find_matches(platform_key, command)
+
+
 def clear_caches() -> None:
     """Clear registry and command-match caches."""
     with _CACHE_LOCK:
         _REGISTRY_CACHE.clear()
         _FIND_MATCHES_CACHE.clear()
+
+
+def _warm_entry(entry: ParserEntry) -> None:
+    entry.normalized_template
+    entry.placeholder_names
+    entry.literal_count
+    entry._tokens
+    entry._pattern
 
 
 def _copy_matches(matches: tuple[CommandMatch, ...] | list[CommandMatch]) -> tuple[CommandMatch, ...]:

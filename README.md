@@ -75,9 +75,24 @@ Available command templates can be inspected with:
 commands = yenie_parser.supported_commands("iosxe")
 ```
 
-Parser registry and command-match metadata are cached after first use. If you
-are developing parser modules in a long-lived Python process, clear those caches
-with:
+Parser registry and command-match metadata are cached after first use. To move
+that first-use work out of a timed collection path, preload parser metadata
+before parsing:
+
+```python
+yenie_parser.preload(
+    platform="iosxe",
+    commands=[
+        "show interfaces status",
+        "show cdp neighbors detail",
+        "show mac address-table",
+    ],
+)
+```
+
+Calling `yenie_parser.preload()` without `commands` (or platform) warms all supported IOS-XE
+command templates. If you are developing parser modules in a long-lived Python
+process, clear those caches with:
 
 ```python
 yenie_parser.clear_caches()
