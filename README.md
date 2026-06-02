@@ -1,9 +1,9 @@
 # Yenie Parser
 
-Yenie Parser is a small Python package for parsing Cisco CLI command output into
+Yenie Parser is a Python package for parsing Cisco CLI command output into
 structured dictionaries without importing the full Cisco Genie/pyATS stack.
 
-The IOS-XE parser set covers command templates adapted from Cisco Genie parser
+The parser set covers command templates adapted from Cisco Genie parser
 files. Results use Genie-compatible dictionary shapes where the upstream parser
 defines them.
 
@@ -14,13 +14,6 @@ published:
 
 ```bash
 pip install yenie-parser
-```
-
-For local development with uv:
-
-```bash
-uv sync
-uv run pytest
 ```
 
 ## Usage
@@ -35,51 +28,6 @@ parsed = yenie_parser.parse(
     command="show device-tracking database",
     raw_output=raw_cli_output,
 )
-```
-
-### CLI
-
-The installed package provides a `yenie-parser` terminal command:
-
-```bash
-yenie-parser parse \
-  --platform iosxe \
-  --command "show device-tracking database" \
-  --raw-output "Binding Table has 1 entries, 0 dynamic (limit 200000)"
-```
-
-Multiline command output can also be read from a file or stdin:
-
-```bash
-yenie-parser parse -p iosxe -c "show device-tracking database" --raw-file output.txt
-cat output.txt | yenie-parser parse -p iosxe -c "show device-tracking database"
-```
-
-Parser failure behavior mirrors the Python API:
-
-```bash
-yenie-parser parse \
-  -p iosxe \
-  -c "show device-tracking database" \
-  --raw-file output.txt \
-  --strict \
-  --warn \
-  --on-failure none
-```
-
-Supported parser templates can be listed or searched:
-
-```bash
-yenie-parser list
-yenie-parser list "authentication s"
-yenie-parser list --search "authentication s"
-yenie-parser list --command "show authentication sessions"
-```
-
-Package metadata is available with:
-
-```bash
-yenie-parser --version
 ```
 
 Currently, parser supports these platforms:
@@ -134,6 +82,52 @@ with:
 ```python
 yenie_parser.clear_caches()
 ```
+
+### CLI
+
+The installed package provides a `yenie-parser` terminal command:
+
+```bash
+yenie-parser parse \
+  --platform iosxe \
+  --command "show device-tracking database" \
+  --raw-output "Binding Table has 1 entries, 0 dynamic (limit 200000)"
+```
+
+Multiline command output can also be read from a file or stdin:
+
+```bash
+yenie-parser parse -p iosxe -c "show device-tracking database" --raw-file output.txt
+cat output.txt | yenie-parser parse -p iosxe -c "show device-tracking database"
+```
+
+Parser failure behavior mirrors the Python API:
+
+```bash
+yenie-parser parse \
+  -p iosxe \
+  -c "show device-tracking database" \
+  --raw-file output.txt \
+  --strict \
+  --warn \
+  --on-failure none
+```
+
+Supported parser templates can be listed or searched:
+
+```bash
+yenie-parser list
+yenie-parser list "authentication s"
+yenie-parser list --search "authentication s"
+yenie-parser list --command "show authentication sessions"
+```
+
+Package metadata is available with:
+
+```bash
+yenie-parser --version
+```
+
 
 ## Attribution
 
